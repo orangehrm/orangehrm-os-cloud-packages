@@ -1,18 +1,15 @@
-version: "3"
+version: "3.9"
 
 services:
   db:
-    image: mariadb:10.9
-    ports:
-      - "3306:3306"
+    image:  mariadb:10.2
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PW}
-      TIME_ZONE: ${TIME_ZONE}
     volumes:
-      - ./volume/db-data:/var/lib/mysql/
+      - ./volume/mysql:/var/lib/mysql
+    restart: always
     networks:
       - orangehrm
-    restart: always
 
   nginx:
     image: orangehrm/nginx
