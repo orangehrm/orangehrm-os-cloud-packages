@@ -13,15 +13,26 @@ Our user guide for setting up your EC2 instance with the OrangeHRM AMI can be fo
 
 ## Developer Guide
 To install this RPM on a fresh EC2 instance of Amazon Linux 2023, do the following:
+
+1. Install dependencies
 ```bash
 sudo dnf install docker pwgen
 sudo usermod -aG docker $USER
 sudo systemctl start docker
 sudo systemctl enable docker
-wget https://github.com/devishke-orange/orangehrm-aws/releases/download/0.0.1/orangehrm-0.0.1-1.amzn2023.noarch.rpm
-sudo dnf install orangehrm-0.0.1-1.amzn2023.noarch.rpm
 ```
-Then, manually install docker compose by following the instructions [here](https://docs.docker.com/compose/install/linux/#install-the-plugin-manually)
+
+2. Manually install docker compose by following the instructions [here](https://docs.docker.com/compose/install/linux/#install-the-plugin-manually)
+
+3. Download the latest RPM build artifact from GitHub workflows and SCP to the EC2 instance
+```bash
+scp -i <identity-file> orangehrm-aws-cli-<version>-<release>.rpm ec2-user@<ec2-ip>:/home/ec2-user
+```
+
+4. Install the RPM in your EC2 instance
+```bash
+sudo dnf install ./orangehrm-aws-cli-<version>-<release>.rpm
+```
 
 ## OrangeHRM Command
 ### Usage
