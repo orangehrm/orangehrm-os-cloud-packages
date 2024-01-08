@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# The login message script. Move to /etc/profile.d
+
+supress_message() {
+    printf "To supress this message remove login_orangehrm.sh from /etc/profile.d\n\n"
+}
+
+if ! command -v orangehrm &>/dev/null; then
+    printf "The orangehrm command is not installed!\n"
+    supress_message
+    exit 0
+fi
+
+orangehrm status
+dnf check-release-update
+supress_message

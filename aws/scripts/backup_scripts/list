@@ -1,0 +1,36 @@
+#!/bin/bash
+
+exec 3>&1 1>>"$LOG_DIR/orangehrm_backup_list.log" 2>&1
+set -x
+set -e
+
+if [[ -z  $OHRM_DIR ]]; then
+    printf "\nPlease run this script from the OrangeHRM command\n" >&3
+    printf "i.e. orangehrm backup list\n\n" >&3
+    exit 1;
+fi
+
+# Check if any backups are available
+if [[ ! -d "$BACKUP_DIR" || -z "$(ls -A "$BACKUP_DIR")" ]]; then
+    printf "You have not created any backups!\n\n" >&3
+    exit 0
+fi
+
+ohrm_print "\n"
+ohrm_print "A list of your existing backups is given below:\n\n"
+
+backups=("$BACKUP_DIR"/*)
+
+ohrm_print "=========================================\n"
+ohrm_print "No.\tVer.\tDate\t\tTime\n"
+ohrm_print "=========================================\n"
+# List Backups
+for index in "${!backups[@]}"; do
+    # shellcheck disable=SC1091
+    source "${backups[index]}/.metadata"
+    printf "%d\t%s\t%s\t%s\n" "$((index+1))" "$BACKUP_VERSION" "$DATE_OF_BACKUP" "$TIME_OF_BACKUP" >&3
+    ohrm_print "=========================================\n"
+done
+
+ohrm_print "\n"
+printf "To restore one of these backups, please run '%borangehrm backup restore%b'\n\n" "$GC" "$EC" >&3

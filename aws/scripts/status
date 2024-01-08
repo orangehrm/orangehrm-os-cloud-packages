@@ -1,0 +1,18 @@
+#!/bin/bash
+
+if [[ -z  $OHRM_DIR ]]; then
+    printf "\nPlease run this script from the OrangeHRM command\n"
+    printf "i.e. orangehrm status\n\n"
+    exit 1;
+fi
+
+if [[ -f "$INSTALL_FILE" ]]; then
+    # shellcheck source=/home/ec2-user/.orangehrm/.installed
+    source "$INSTALL_FILE"
+    printf "\n%bOrangeHRM %s is installed%b\n\n" "$GC" "$OHRM_VERSION" "$EC"
+else
+    printf "\n%bOrangeHRM is not installed%b\n" "$YC" "$EC"
+    printf "Run '%borangehrm install%b' to start the installation\n\n" "$GC" "$EC"
+fi
+
+exit 0

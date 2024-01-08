@@ -1,0 +1,135 @@
+#!/bin/bash
+
+exec 3>&1 1>>"$LOG_DIR/orangehrm_update.log" 2>&1
+set -x
+set -e
+
+if [[ -z  $OHRM_DIR ]]; then
+    printf "\nPlease run this script from the OrangeHRM command\n" >&3
+    printf "i.e. orangehrm update\n\n" >&3
+    exit 1;
+fi
+
+answer=""
+new_version=""
+upgrade_dir="${OHRM_HOME_DIR}/.upgrade/$(echo $RANDOM | md5sum | head -c 10)"
+update_url=https://raw.githubusercontent.com/devishke-orange/orangehrm-aws/main/compose.yml
+KEY_PATH="/var/www/html/lib/confs/cryptokeys/key.ohrm"
+
+check_version() {
+    # shellcheck source=/home/ec2-user/.orangehrm/.installed
+    source "$INSTALL_FILE"
+
+    new_version=$(curl --silent "$update_url" | grep "    image: orangehrm/orangehrm:" | sed 's/    image: orangehrm\/orangehrm://')
+
+    if [[ "${OHRM_VERSION}" = "${new_version}" ]]; then
+        printf "\n%bOrangeHRM is up to date!%b\n" "$GC" "$EC" >&3
+        exit 0;
+    fi
+
+    printf "\n%bA new version of OrangeHRM is available%b\n" "$GC" "$EC" >&3
+}
+
+upgrader_confirm()  {
+    printf "Are you sure you want to upgrade? [%byes/no%b]\n" "$YC" "$EC" >&3
+    read -rp "> " answer 2>&3
+    
+    while ! yes_no_check "$answer"; do
+        printf "Please enter yes or no\n" >&3
+        read -rp "> " answer 2>&3
+    done
+
+    quit_if_input "$NO_REGEX" "$answer" "Upgrade process aborted!"
+
+}
+
+create_backup() {
+    orangehrm backup create >&3
+}
+
+copy_encryption_key() {
+    if docker exec orangehrm find "${KEY_PATH}"; then
+        mkdir -p "${upgrade_dir}"
+        docker cp orangehrm:"${KEY_PATH}" "${upgrade_dir}" --quiet
+    fi
+}
+
+stop_existing_ohrm() {
+    print_progress_message "Stopping OHRM container" wip
+    
+    if docker inspect "$ORANGEHRM_CONTAINER"; then
+        docker stop "$ORANGEHRM_CONTAINER"
+        docker rm "$ORANGEHRM_CONTAINER"
+    fi
+
+    if docker inspect "$CERTBOT_CONTAINER"; then
+        docker stop "$CERTBOT_CONTAINER"
+        docker rm "$CERTBOT_CONTAINER"
+    fi
+
+    if docker volume inspect "$ORANGEHRM_WEBROOT_VOLUME"; then
+        docker volume rm "$ORANGEHRM_WEBROOT_VOLUME"
+    fi
+
+    print_progress_message "Stopping OHRM container" success rewrite
+}
+
+create_new_container() {
+    print_progress_message "Downloading new compose file" wip
+    rm -f "$COMPOSE_FILE"
+    curl "$update_url" > "$COMPOSE_FILE"
+    print_progress_message "Downloading new compose file" success rewrite
+
+    print_progress_message "Starting the new container" wip
+    
+    docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+
+    sleep 2
+
+    maintenance_mode enable
+    htaccess_ssl_configure
+    apache_enable_ssl
+
+    if [[ -f "${upgrade_dir}/key.ohrm" ]]; then
+        docker cp "${upgrade_dir}/key.ohrm" orangehrm:"${KEY_PATH}"
+    fi
+
+    print_progress_message "Starting the new container" success rewrite
+}
+
+upgrade_ohrm() {
+    print_progress_message "Upgrading OrangeHRM" wip
+
+    # shellcheck source=/home/ec2-user/.orangehrm/.env
+    source "$ENV_FILE"
+    local db_pw_decrypt
+    db_pw_decrypt="$(echo "$MARIADB_ROOT_PW" | base64 -d)"
+    
+    docker exec orangehrm php installer/console upgrade:run --dbHost mariadb1011 --dbPort 3306 --dbName orangehrm --dbUser root --dbUserPassword "${db_pw_decrypt}"
+
+    maintenance_mode disable
+
+    rm -rf "${upgrade_dir}"
+    print_progress_message "Upgrading OrangeHRM" success rewrite
+    printf "\n%bOrangeHRM was succesfully upgraded to %s!%b\n\n" "$GC" "$new_version" "$EC" >&3
+}
+
+update_install_file() {
+    {
+        printf "#!/bin/bash\n\n"
+        printf "# DO NOT DELETE THIS FILE!\n"
+        printf "# This file contains information about the installed version of OrangeHRM\n\n"
+        printf "export OHRM_VERSION=%s" "$new_version"
+    } > "$INSTALL_FILE"
+}
+
+check_version
+upgrader_confirm
+create_backup
+copy_encryption_key
+stop_existing_ohrm
+create_new_container
+upgrade_ohrm
+update_install_file
+
+exit 0

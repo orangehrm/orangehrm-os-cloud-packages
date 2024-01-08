@@ -1,0 +1,8 @@
+modules:
+  blazemeter:
+    test: "Visit Login Page Response Time"
+
+scenarios:
+  orangehrm:
+    requests:
+    - ${BASE_URL}

@@ -1,0 +1,57 @@
+#!/bin/bash
+
+exec 3>&1 1>>"$LOG_DIR/orangehrm_backup.log" 2>&1
+set -x
+set -e
+
+if [[ -z $OHRM_DIR ]]; then
+    printf "\nPlease run this script from the OrangeHRM command\n" >&3
+    printf "i.e. orangehrm ssl\n\n" >&3
+    exit 1;
+fi
+
+# Function to run SSL scripts
+# Give the name of the script as the first argument
+ohrm_ssl_script() {
+    sh "$SSL_SCRIPTS_DIR/$1" >&3
+}
+
+# Pass the name of the log file as the first argument
+# shellcheck disable=SC2317
+err_exit() {
+    printf "\n%bSomething has gone wrong!%b\n" "$RC" "$EC" >&3
+    cp -rf "$LOG_DIR/$1" "$HOME"
+    printf "Please find the relevant long files at %b%s%b\n\n" "$GC" "$HOME/$1" "$EC" >&3
+    exit 1
+}
+
+if [[ $# -eq 0 ]]; then
+    # If no arguments
+     ohrm_ssl_script ssl_help
+else
+    case $1 in
+        help)
+            ohrm_ssl_script ssl_help
+            ;;
+        enable)
+            trap 'err_exit orangehrm_ssl_enable.log' ERR
+            ohrm_ssl_script enable
+            ;;
+        restore)
+            trap 'err_exit orangehrm_ssl_restore.log' ERR
+            ohrm_ssl_script restore
+            ;;
+        renew)
+            trap 'err_exit orangehrm_ssl_renew.log' ERR
+            ohrm_ssl_script renew
+            ;;
+        auto-renew)
+            trap 'err_exit orangehrm_ssl_auto_renew.log' ERR
+            ohrm_ssl_script auto_renew
+            ;;
+        *)
+            printf "\n%b%s%b is not an orangehrm ssl commmand\n" "$RC" "$1" "$EC" >&3
+            printf "See '%borangehrm ssl help%b'\n\n" "$GC" "$EC" >&3
+            ;;
+    esac
+fi

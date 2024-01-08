@@ -1,0 +1,5 @@
+execution:
+  - concurrency: 50
+    ramp-up: 30s
+    hold-for: 2m
+    scenario: orangehrm

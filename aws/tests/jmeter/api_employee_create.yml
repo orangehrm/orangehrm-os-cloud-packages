@@ -1,0 +1,22 @@
+modules:
+  blazemeter:
+    test: "Employee API POST GET Response Time"
+
+scenarios:
+  orangehrm:
+    requests:
+    - url: ${EMPLOYEE_API}
+      headers:
+        Authorization: ${API_TOKEN}
+      method: POST
+      body:
+        firstName: Test
+        lastName: Test
+    - url: ${EMPLOYEE_API}?limit=0
+      headers:
+        Authorization: ${API_TOKEN}
+      method: GET
+
+settings:
+  env:
+    EMPLOYEE_API: ${BASE_URL}/api/v2/pim/employees

@@ -1,0 +1,298 @@
+#!/bin/bash
+
+if [[ "$UID" -eq 0 ]]; then
+  printf "Please do not run orangehrm as the root user as this can result in broken permissions\n"
+  printf "Please log in as a normal user (default: ec2-user)\n\n"
+  exit 1
+fi
+
+# Script and asset directories
+export OHRM_DIR=/opt/orangehrm
+export SCRIPT_DIR="$OHRM_DIR/scripts"
+export HELPER_SCRIPTS_DIR="$SCRIPT_DIR/helper_scripts"
+export BACKUP_SCRIPTS_DIR="$SCRIPT_DIR/backup_scripts"
+export SSL_SCRIPTS_DIR="$SCRIPT_DIR/ssl_scripts"
+export ASSET_DIR="$OHRM_DIR/assets"
+
+# Created files and directories 
+export OHRM_HOME_DIR="$HOME/.orangehrm"
+export LOG_DIR="$OHRM_HOME_DIR/logs"
+export BACKUP_DIR="$OHRM_HOME_DIR/backups"
+export COMPOSE_FILE="$OHRM_HOME_DIR/compose.yml"
+export ENV_FILE="$OHRM_HOME_DIR/.env"
+export INSTALL_FILE="$OHRM_HOME_DIR/.installed"
+
+# SSL files, directories & variables
+export SSL_CONF_FILE="$ASSET_DIR/ssl.conf"
+export HTACCESS_INTEGRITY_ORIGINAL=".integrity_original"
+export HTACCESS_INTEGRITY_SSL=".integrity_ssl"
+export HTACCESS_INTEGRITY_ORIGINAL_FILE="$OHRM_HOME_DIR/$HTACCESS_INTEGRITY_ORIGINAL"
+export HTACCESS_INTEGRITY_SSL_FILE="$OHRM_HOME_DIR/$HTACCESS_INTEGRITY_SSL"
+
+# Docker container and volume names
+export ORANGEHRM_CONTAINER="orangehrm"
+export MARIADB_CONTAINER="mariadb"
+export CERTBOT_CONTAINER="certbot"
+export ORANGEHRM_WEBROOT_VOLUME="orangehrm_orangehrm-webroot"
+export ORANGEHRM_DB_VOLUME="orangehrm_orangehrm-db"
+
+# Create log dir
+if ! [[ -d "$LOG_DIR" ]]; then
+    mkdir -p "$LOG_DIR"
+fi
+
+# Create backup dir
+if ! [[ -d "$BACKUP_DIR" ]]; then
+    mkdir -p "$BACKUP_DIR"
+fi
+
+exec 3>&1 1>>"$LOG_DIR/orangehrm.log" 2>&1
+set -x
+
+# Exporting colours
+#   RC = red colour + bold
+#   GC = green colour + bold
+#   YC = yellow colour + bold
+#   EC = end colour (return to default)
+# Usage in printf
+#   printf "%bThis text is green colour%b" "$GC" "$EC"
+export RC="\e[1;31m"
+export GC="\e[1;32m"
+export YC="\e[1;33m"
+export EC="\e[0m"
+
+export YES_REGEX="^y(e|es)?$"
+export NO_REGEX="^n(o)?$"
+
+check_installed() {
+    if ! [[ -f "$INSTALL_FILE" ]]; then
+        ohrm_script status
+        exit 1
+    fi
+}
+
+# Print a progress message
+# First argument will be the message - less than 50 characters
+# Second argument should be the icon
+#   "error" = 🔴
+#   "wip" = 🚧
+#   "success" = ✅
+# A newline (\n) will be printed at the end of the message
+# The third argument should be equal to "rewrite" or kept blank
+# This argument will overwrite the previous message using tput cuu1
+# shellcheck disable=SC2317
+print_progress_message() {
+    local dots
+    local icon
+    local colour
+    dots=".................................................."
+
+    if [[ $2 = "error" ]]; then
+        icon="🔴"
+        colour=$RC
+    elif [[ $2 = "wip" ]]; then
+        icon="🚧"
+        colour=$YC
+    elif [[ $2 = "success" ]]; then
+        icon="✅"
+        colour=$GC
+    fi
+
+    if [[ -n $3 && $3 = "rewrite" ]]; then
+        tput cuu1 >&3
+    fi
+
+    printf "%b%.50s%b%s\n" "$colour" "$1$dots" "$EC" "$icon" >&3
+}
+
+# Function to check whether the user's input is yes or no
+# Provide the input as the first argument
+# shellcheck disable=SC2317
+yes_no_check() {
+    if [[ $1 =~ $YES_REGEX ]] || [[ $1 =~ $NO_REGEX ]]; then
+        return 0
+    fi
+    return 1
+}
+
+# Function to exit the script based on the user's input
+# Provide the quit condition value as the first argument
+#   e.g. If input should quit on "no", first argument should be "no"
+# Provide the user's input as the second argument
+# Provide a message that should be printed as the third argument
+# shellcheck disable=SC2317
+quit_if_input() {
+    if [[ "$2" =~ $1 ]]; then
+        printf "%b\n" "$3" >&3
+        exit 0
+    fi
+}
+
+# Simple function that provides one argument to printf and redirect to file descriptor 3
+# Intended for cases where strings are printed without additional arguments
+# shellcheck disable=SC2317
+ohrm_print() {
+    printf "%b" "$1" >&3
+}
+
+# SSL helper function prepare the .htaccess file for ACME challenges
+# No arguments need to be passed
+# shellcheck disable=SC2317
+htaccess_ssl_configure() {
+    if find "$HTACCESS_INTEGRITY_SSL_FILE"; then
+        docker cp "$HTACCESS_INTEGRITY_SSL_FILE" orangehrm:/var/www/html
+    fi
+
+    if find "$HTACCESS_INTEGRITY_ORIGINAL_FILE"; then
+        docker cp "$HTACCESS_INTEGRITY_ORIGINAL_FILE" orangehrm:/var/www/html
+    fi
+
+    if docker exec orangehrm md5sum -c "$HTACCESS_INTEGRITY_ORIGINAL"; then
+        docker exec orangehrm sed -i "3 d" /var/www/html/.htaccess
+        docker exec orangehrm sed -i '2 a RedirectMatch 404 /(?!\\.well\\-known)\\..*$' /var/www/html/.htaccess
+    elif ! docker exec orangehrm md5sum -c "$HTACCESS_INTEGRITY_SSL"; then
+        # If this point has reached, then the .htaccess file does not match both the original and ssl modified version
+        # The user will have to manually make sure it's working
+        ohrm_print "Your .htaccess file could not be verified!\n"
+        ohrm_print "Please ensure your .htaccess file is configured correctly so that Let's Encrypt can generate the certificates!\n"
+        ohrm_print "You can view an example here: https://gist.github.com/devishke-orange/ac6e941cbcd48567242b3fa1e07ae1e9\n"
+    fi    
+}
+
+# Function to change index.php files to maintenance.php file to prevent access during installation/upgrade
+# First argument should be string with value enable or disable
+# shellcheck disable=SC2317
+maintenance_mode() {
+    if [[ $1 = "enable" ]]; then
+        docker cp "${ASSET_DIR}/maintenance.php" orangehrm:/var/www/html
+        docker exec orangehrm mv /var/www/html/index.php /var/www/html/.backup
+        docker exec orangehrm cp /var/www/html/maintenance.php /var/www/html/index.php
+
+        docker exec orangehrm mv /var/www/html/web/index.php /var/www/html/web/.backup
+        docker exec orangehrm cp /var/www/html/maintenance.php /var/www/html/web/index.php
+
+        docker exec orangehrm mv /var/www/html/installer/index.php /var/www/html/installer/.backup
+        docker exec orangehrm cp /var/www/html/maintenance.php /var/www/html/installer/index.php
+    elif [[ $1 = "disable" ]]; then
+        docker exec orangehrm rm -f /var/www/html/maintenance.php
+        docker exec orangehrm mv /var/www/html/.backup /var/www/html/index.php
+        docker exec orangehrm mv /var/www/html/installer/.backup /var/www/html/installer/index.php
+        docker exec orangehrm mv /var/www/html/web/.backup /var/www/html/web/index.php
+    fi
+}
+
+# Function to enable SSL for Apache server in OrangeHRM docker container
+# No arguments needed
+# shellcheck disable=SC2317
+apache_enable_ssl() {
+    docker exec orangehrm a2enmod ssl
+
+    # docker exec orangehrm service apache2 restart exits with error on success causing the script to fail because of set -e
+    # by putting it in an if condition this is avoided
+    if docker exec orangehrm service apache2 restart; then
+        ohrm_print "The apache service did not restart properly!\n"
+        ohrm_print "Please run 'docker exec orangehrm service apache2 restart'\n"
+    else
+        # Since container is restarting, sleep before continuing any operation
+        sleep 2
+    fi
+}
+
+export -f print_progress_message
+export -f yes_no_check
+export -f quit_if_input
+export -f ohrm_print
+export -f htaccess_ssl_configure
+export -f maintenance_mode
+export -f apache_enable_ssl
+
+# Function to run scripts.
+# Give the name of the script as the first argument
+# Give "check" as the second argument if the install status needs to be checked
+ohrm_script() {
+    if [[ $2 = "check" ]]; then
+        check_installed
+    fi
+    sh "$SCRIPT_DIR/$1" >&3
+}
+
+cleanup() {
+    unset OHRM_DIR
+    unset SCRIPT_DIR
+    unset ASSET_DIR
+    unset RC
+    unset GC
+    unset YC
+    unset EC
+    unset WIP_ICON
+    unset SUCCESS_ICON
+    unset ERROR_ICON
+    unset YES_REGEX
+    unset NO_REGEX
+}
+
+# Pass the name of the log file as the first argument
+# shellcheck disable=SC2317
+err_exit() {
+    printf "\n%bSomething has gone wrong!%b\n" "$RC" "$EC" >&3
+    cp -rf "$LOG_DIR/$1" "$HOME"
+    printf "Please find the relevant long files at %b%s%b\n\n" "$GC" "$HOME/$1" "$EC" >&3
+    cleanup
+    exit 1
+}
+
+if [[ $# -eq 0 ]]; then
+    # If no arguments
+    ohrm_script help
+else
+    case $1 in
+        help)
+            ohrm_script help
+            ;;
+        install)
+            trap 'err_exit orangehrm_install.log' ERR
+            ohrm_script install
+            ;;
+        update)
+            trap 'err_exit orangehrm_update.log' ERR
+            ohrm_script update check
+            ;;
+        check-update)
+            trap 'err_exit orangehrm_check_update.log' ERR
+            ohrm_script check_update check
+            ;;            
+        backup)
+            check_installed
+            if [[ -n $2 ]]; then
+                sh "$SCRIPT_DIR/backup" "$2" >&3
+            else
+                sh "$SCRIPT_DIR/backup" >&3
+            fi
+            ;;
+        ssl)
+            check_installed
+            if [[ -n $2 ]]; then
+                sh "$SCRIPT_DIR/ssl" "$2" >&3
+            else
+                sh "$SCRIPT_DIR/ssl" >&3
+            fi
+            ;;
+        clean)
+            trap 'err_exit orangehrm_clean.log' ERR
+            ohrm_script clean
+            ;;
+        status)
+            ohrm_script status
+            ;;
+        get-logs)
+            ohrm_script get_logs check
+            ;;
+        *)
+            printf "\n%b%s%b is not an orangehrm command\n" "$RC" "$1" "$EC" >&3
+            printf "See '%borangehrm help%b'\n\n" "$GC" "$EC" >&3
+            ;;
+    esac
+fi
+
+cleanup
+exit 0;

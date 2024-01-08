@@ -1,0 +1,46 @@
+#!/bin/bash
+
+exec 3>&1 1>>"$LOG_DIR/orangehrm_backup_clean.log" 2>&1
+set -x
+set -e
+
+if [[ -z  $OHRM_DIR ]]; then
+    printf "\nPlease run this script from the OrangeHRM command\n" >&3
+    printf "i.e. orangehrm backup clean\n\n" >&3
+    exit 1;
+fi
+
+# Check if any backups are available
+if [[ ! -d "$BACKUP_DIR" || -z "$(ls -A "$BACKUP_DIR")" ]]; then
+    printf "You have not created any backups!\n\n" >&3
+    exit 0
+fi
+
+ohrm_print "\n"
+
+printf "%bWARNING%b: This will delete all existing backups!\n\n" "$RC" "$EC" >&3
+
+answer="no"
+
+printf "Are you sure you want to continue %b[yes/no]%b\n" "$YC" "$EC" >&3
+read -rp "> " answer 2>&3
+
+while ! yes_no_check "$answer"; do
+    ohrm_print "Please enter yes or no\n"
+    read -rp "> " answer 2>&3
+done
+
+quit_if_input "$NO_REGEX" "$answer" "Aborting backup clean process!"
+
+size="$(du -sh "$BACKUP_DIR" | cut -f1)"
+
+ohrm_print "\n"
+
+print_progress_message "Cleaning backups" wip
+rm -rf "$BACKUP_DIR"
+print_progress_message "Cleaning backups" success rewrite
+
+ohrm_print "\n"
+printf "Recovered space: %s\n\n" "$size" >&3
+
+ohrm_print "Your OrangeHRM backups have been deleted!\n\n"

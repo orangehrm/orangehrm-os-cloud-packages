@@ -1,0 +1,29 @@
+#!/bin/bash
+
+if [[ -z  $OHRM_DIR ]]; then
+    printf "\nPlease run this script from the OrangeHRM command\n"
+    printf "i.e. orangehrm backup\n\n"
+    exit 1;
+fi
+
+now=$(date +"%Y_%m_%d_%H_%M_%S")
+containerLogDir="/var/www/html/src/log"
+certbotLogDir="/var/log/letsencrypt"
+localLogDir="$HOME/orangehrm_logs/$now"
+
+printf "\nThis command will retrieve logs from the OrangeHRM container and store them at %s/orangehrm_logs\n\n" "$HOME"
+
+mkdir -p "$localLogDir"
+
+print_progress_message "Copying logs" wip
+docker cp orangehrm:"$containerLogDir" "$localLogDir/ohrm_logs" --quiet
+docker cp certbot:"$certbotLogDir" "$localLogDir/cerbot_logs" --quiet
+cp -r "$LOG_DIR" "$localLogDir/command_logs"
+print_progress_message "Copying logs" success rewrite
+
+printf "Your logs are available at %s\n\n" "${localLogDir}"
+
+printf "If you want to transfer them to your local machine, you can try the following commmand on your local machine:\n"
+token=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+ohrmIP=$(curl -s -H "X-aws-ec2-metadata-token: ${token}" http://169.254.169.254/latest/meta-data/public-ipv4)
+printf "'%bscp -i your_identity_file -r %s@%s:%s your_local_path%b'\n\n" "$GC" "$USER" "$ohrmIP" "$localLogDir" "$EC"

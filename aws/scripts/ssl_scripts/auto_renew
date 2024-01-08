@@ -1,0 +1,55 @@
+#!/bin/bash
+
+exec 3>&1 1>>"$LOG_DIR/orangehrm_ssl_auto_renew.log" 2>&1
+set -x
+set -e
+
+if [[ -z  $OHRM_DIR ]]; then
+    ohrm_print "\nPlease run this script from the OrangeHRM command\n"
+    ohrm_print "i.e. orangehrm ssl enable\n\n"
+    exit 1
+fi
+
+ohrm_print "This tool will create a systemd timer to renew your generated SSL certificates\n"
+ohrm_print "The timer will run daily at 00:00:00 UTC\n"
+
+print_progress_message "Checking pre-requisites" wip
+
+if docker exec certbot certbot certificates | grep "No certificates found"; then
+    print_progress_message "Checking pre-requisites" error rewrite
+    ohrm_print "You have not generated any certificates!\n"
+    printf "You can run %borangehrm%b ssl enable to get started\n\n" "$GC" "$EC" >&3
+    exit 1
+fi
+
+print_progress_message "Checking pre-requisites" success rewrite
+
+print_progress_message "Creating auto-renewal files" wip
+
+cat << EOF > "$HOME/ssl_renew.service"
+[Unit]
+Description="Service to run orangehrm ssl renew"
+
+[Service]
+ExecStart=/usr/bin/orangehrm ssl renew
+EOF
+
+cat << EOF > "$HOME/ssl_renew.timer"
+[Unit]
+Description="Run ssl_renew.service daily to check whether SSL certificates need to be renewed"
+
+[Timer]
+OnCalendar=*-*-* 00:00:00
+Unit=ssl_renew.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+print_progress_message "Creating auto-renewal files" success rewrite
+
+ohrm_print "\n"
+
+ohrm_print "You will need to move the auto-renewal files to the relevant directory\n"
+ohrm_print "Please run the following command in your terminal\n"
+printf "%bsudo mv %s /etc/systemd/system && sudo mv %s /etc/systemd/system && sudo systemctl start ssl_renew.timer && sudo systemctl enable ssl_renew.timer%b\n\n" "$GC" "$HOME/ssl_renew.service" "$HOME/ssl_renew.timer" "$EC" >&3

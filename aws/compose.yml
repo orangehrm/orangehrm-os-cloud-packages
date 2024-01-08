@@ -1,0 +1,50 @@
+services:
+  orangehrm:
+    image: orangehrm/orangehrm:5.5
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - orangehrm-webroot:/var/www/html
+      - orangehrm-cert:/etc/letsencrypt
+      - orangehrm-sites-available:/etc/apache2/sites-available
+      - orangehrm-sites-enabled:/etc/apache2/sites-enabled
+    networks:
+      - orangehrm
+    container_name: orangehrm
+
+  mariadb1011:
+    image: mariadb:10.11.4
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PW}
+    volumes:
+      - orangehrm-db:/var/lib/mysql
+    networks:
+      - orangehrm
+    container_name: mariadb
+
+  certbot:
+    image: certbot/certbot
+    restart: always
+    volumes:
+      - orangehrm-webroot:/var/www/html
+      - orangehrm-cert:/etc/letsencrypt
+    networks:
+      - orangehrm
+    entrypoint: /bin/sh
+    tty: true
+    container_name: certbot
+
+networks:
+  orangehrm:
+
+volumes:
+  orangehrm-webroot:
+  orangehrm-cert:
+  orangehrm-sites-available:
+  orangehrm-sites-enabled:
+  orangehrm-db:

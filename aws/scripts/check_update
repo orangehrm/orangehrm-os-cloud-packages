@@ -1,0 +1,26 @@
+#!/bin/bash
+
+exec 3>&1 1>>"$LOG_DIR/orangehrm_check_update.log" 2>&1
+set -x
+set -e
+
+if [[ -z  $OHRM_DIR ]]; then
+    printf "\nPlease run this script from the OrangeHRM command\n" >&3
+    printf "i.e. orangehrm check_update\n\n" >&3
+    exit 1;
+fi
+
+# shellcheck source=/home/ec2-user/.orangehrm/.installed
+source "$INSTALL_FILE"
+
+newVersion=$(curl --silent https://raw.githubusercontent.com/devishke-orange/orangehrm-aws/main/compose.yml | grep "    image: orangehrm/orangehrm:" | sed 's/    image: orangehrm\/orangehrm://')
+
+if [[ "$OHRM_VERSION" = "$newVersion" ]]; then
+    printf "\n%bOrangeHRM is up to date%b\n\n" "$GC" "$EC" >&3
+else
+    ohrm_print "\n"
+    ohrm_print "A new version of OrangeHRM is available!\n"
+    printf "Please run '%borangehrm update%b' to upgrade!\n\n" "$GC" "$EC" >&3
+fi
+
+exit 0;

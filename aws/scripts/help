@@ -1,0 +1,48 @@
+#!/bin/bash
+
+if [[ -z  $OHRM_DIR ]]; then
+    printf "\nPlease run this script from the OrangeHRM command\n"
+    printf "i.e. orangehrm help\n\n"
+    exit 1;
+fi
+
+# Provide the command in the first argument
+# Provide the description in the next arguments. Each argument will create a new line
+print_help_message() {
+    printf "%-30b %b" "$1" "$2"
+
+    local currentArg
+    currentArg=3
+
+    # Print additional lines
+    while [[ currentArg -le $# ]]; do
+        printf "%30b %b" "" "${!currentArg}"
+        currentArg=$((currentArg+1))
+    done
+}
+
+tput bold
+printf "\nOrangeHRM Command\n\n"
+tput sgr0
+printf "This command allows you to manage your OrangeHRM AWS instance completely from the terminal.\n\n"
+printf "Usage:\n"
+print_help_message "  orangehrm help" "Display this message\n"
+print_help_message "  orangehrm install" "Start the OrangeHRM web application installation.\n"
+print_help_message "  orangehrm update" "Upgrade an existing instance of the OrangeHRM web application.\n"
+print_help_message "  orangehrm check-update" "Check for an available update to the OrangeHRM web application.\n"
+print_help_message "  orangehrm status" "Display the installed status of the OrangeHRM web applcation.\n" "If you have moved login_orangehrm.sh to /etc/profile.d, this will run on SSH.\n"
+print_help_message "  orangehrm backup" "Access the OrangeHRM Backup utility.\n" "Without additional arguments, this will run 'orangehrm backup help'.\n"
+print_help_message "    orangehrm backup help" "Display the help message for the orangehrm backup utility.\n"
+print_help_message "    orangehrm backup create" "Create a backup of your existing OrangeHRM web application instance.\n"
+print_help_message "    orangehrm backup restore" "Restore a previously created backup of your OrangeHRM instance.\n"
+print_help_message "    orangehrm backup list" "List your existing backups\n"
+print_help_message "    orangehrm backup clean" "Permanently delete your existing backups\n"
+print_help_message "  orangehrm ssl" "Access the OrangeHRM SSL utility.\n" "Without additional arguments, this will run 'orangehrm ssl help'.\n"
+print_help_message "    orangehrm ssl help" "Display this message.\n"
+print_help_message "    orangehrm ssl enable" "Enable SSL on a newly installed instance. This command will not work if you have already generated SSL certificates.\n"
+print_help_message "    orangehrm ssl restore" "Restore server configurations for your generated certificates.\n"
+print_help_message "    orangehrm ssl renew" "Renew your SSL certificates.\n"
+print_help_message "    orangehrm ssl auto-renew" "Generate a script to auto-renew your SSL certificates.\n"
+print_help_message "  orangehrm clean" "Permanently remove all your OrangeHRM data!\n\n"
+
+printf "For any further concerns, you can contact us at ossupport@orangehrm.com\n\n"

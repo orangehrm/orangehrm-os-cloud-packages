@@ -1,0 +1,26 @@
+#!/bin/bash
+
+if [[ -z  "$OHRM_DIR" ]]; then
+    printf "\nPlease run this script from the OrangeHRM command\n"
+    printf "i.e. orangehrm backup help\n\n"
+    exit 1;
+fi
+
+# Provide the command in the first argument
+# Provide the description in the second argument
+print_help_message() {
+    printf "%-30b %b" "$1" "$2"
+}
+
+tput bold
+printf "\nOrangeHRM Backup Command\n\n"
+tput sgr0
+printf "This command allows you to manage your OrangeHRM AWS instance backups from the terminal.\n\n"
+echo "Usage:"
+print_help_message "  orangehrm backup help" "Display this message.\n"
+print_help_message "  orangehrm backup create" "Create a backup of your existing OrangeHRM web application instance. The backup will be archived and stored locally on AWS instance.\n"
+print_help_message "  orangehrm backup restore" "Restore a previously created backup of your OrangeHRM instance. Your existing OrangeHRM data will be backed up before this process is carried out.\n"
+print_help_message "  orangehrm backup list" "List your existing backups along with their sizes.\n"
+print_help_message "  orangehrm backup clean" "Permanently delete your existing backups in order to save space.\n\n"
+
+printf "For any further concerns, you can contact us at ossupport@orangehrm.com\n\n"

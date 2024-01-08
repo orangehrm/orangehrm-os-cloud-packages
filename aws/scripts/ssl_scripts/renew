@@ -1,0 +1,40 @@
+#!/bin/bash
+
+exec 3>&1 1>>"$LOG_DIR/orangehrm_ssl_renew.log" 2>&1
+set -x
+set -e
+
+if [[ -z  $OHRM_DIR ]]; then
+    ohrm_print "\nPlease run this script from the OrangeHRM command\n"
+    ohrm_print "i.e. orangehrm ssl enable\n\n"
+    exit 1
+fi
+
+if docker inspect certbot; then
+    certbot_status="$(docker inspect certbot | jq '.[0] | .State | .Running')"
+    if [[ $certbot_status = "false" ]]; then
+        exit 1;
+    fi
+else
+    exit 1;
+fi
+
+if docker inspect orangehrm; then
+    orangehrm_status="$(docker inspect orangehrm | jq '.[0] | .State | .Running')"
+    if [[ $orangehrm_status = "false" ]]; then
+        ohrm_print "OrangeHRM is not running!"
+        exit 1;
+    fi
+else
+    exit 1;
+fi
+
+htaccess_ssl_configure 
+
+if docker exec certbot certbot certificates | grep "No certificates found"; then
+    ohrm_print "You have not generated any certificates\n"
+    printf "You can run '%borangehrm ssl enable%b to generate SSL certificates'\n\n" "$GC" "$EC" >&3
+    exit 0
+fi
+
+docker exec certbot certbot renew  >&3
