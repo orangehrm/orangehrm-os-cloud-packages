@@ -37,7 +37,7 @@ jobs:
           tar -cf orangehrm-aws-cli-${RPM_VERSION}.tar.gz orangehrm-aws-cli-${RPM_VERSION}
           popd
           sudo mv build/orangehrm-aws-cli-${RPM_VERSION}.tar.gz build/ec2-user/rpmbuild/SOURCES
-          sudo mv orangehrm.spec build/ec2-user/rpmbuild/SPECS
+          sudo mv aws/orangehrm.spec build/ec2-user/rpmbuild/SPECS
         
       - name: Lint spec file
         run: docker exec --user ec2-user AWS rpmlint /home/ec2-user/rpmbuild/SPECS/orangehrm.spec
