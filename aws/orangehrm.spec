@@ -71,4 +71,5 @@ chown -R ec2-user:ec2-user %{buildroot}/opt/orangehrm
 - Addition of SSL commands
 - Changed MIT License to GPLv3 License
 * Mon Nov 20 2023 devishke-orange <devishke@orangehrmlive.com> - 0.0.1-1.amzn2023
-- Package test
+- OrangeHRM AWS CLI Initial Release
+- Install, update, backup, restore, clean commands included

@@ -1,5 +1,22 @@
 #!/bin/bash
 
+# OrangeHRM AWS CLI assists AWS Marketplace Subscribers
+# with managing their installation of OrangeHRM Starter
+# Copyright (C) 2024 OrangeHRM Inc., http://www.orangehrm.com
+#
+# OrangeHRM AWS CLI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# OrangeHRM AWS CLI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with OrangeHRM AWS CLI.  If not, see <https://www.gnu.org/licenses/>.
+
 exec 3>&1 1>>"$LOG_DIR/orangehrm_update.log" 2>&1
 set -x
 set -e
@@ -13,14 +30,13 @@ fi
 answer=""
 new_version=""
 upgrade_dir="${OHRM_HOME_DIR}/.upgrade/$(echo $RANDOM | md5sum | head -c 10)"
-update_url=https://raw.githubusercontent.com/devishke-orange/orangehrm-aws/main/compose.yml
 KEY_PATH="/var/www/html/lib/confs/cryptokeys/key.ohrm"
 
 check_version() {
     # shellcheck source=/home/ec2-user/.orangehrm/.installed
     source "$INSTALL_FILE"
 
-    new_version=$(curl --silent "$update_url" | grep "    image: orangehrm/orangehrm:" | sed 's/    image: orangehrm\/orangehrm://')
+    new_version=$(curl --silent "$UPDATE_URL" | grep "    image: orangehrm/orangehrm:" | sed 's/    image: orangehrm\/orangehrm://')
 
     if [[ "${OHRM_VERSION}" = "${new_version}" ]]; then
         printf "\n%bOrangeHRM is up to date!%b\n" "$GC" "$EC" >&3
@@ -77,7 +93,7 @@ stop_existing_ohrm() {
 create_new_container() {
     print_progress_message "Downloading new compose file" wip
     rm -f "$COMPOSE_FILE"
-    curl "$update_url" > "$COMPOSE_FILE"
+    curl "$UPDATE_URL" > "$COMPOSE_FILE"
     print_progress_message "Downloading new compose file" success rewrite
 
     print_progress_message "Starting the new container" wip

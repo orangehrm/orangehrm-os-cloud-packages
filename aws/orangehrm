@@ -1,5 +1,22 @@
 #!/bin/bash
 
+# OrangeHRM AWS CLI assists AWS Marketplace Subscribers
+# with managing their installation of OrangeHRM Starter
+# Copyright (C) 2024 OrangeHRM Inc., http://www.orangehrm.com
+#
+# OrangeHRM AWS CLI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# OrangeHRM AWS CLI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with OrangeHRM AWS CLI.  If not, see <https://www.gnu.org/licenses/>.
+
 if [[ "$UID" -eq 0 ]]; then
   printf "Please do not run orangehrm as the root user as this can result in broken permissions\n"
   printf "Please log in as a normal user (default: ec2-user)\n\n"
@@ -35,6 +52,9 @@ export MARIADB_CONTAINER="mariadb"
 export CERTBOT_CONTAINER="certbot"
 export ORANGEHRM_WEBROOT_VOLUME="orangehrm_orangehrm-webroot"
 export ORANGEHRM_DB_VOLUME="orangehrm_orangehrm-db"
+
+# Update URL
+export UPDATE_URL="https://raw.githubusercontent.com/orangehrm/os-cloud/master/aws/compose.yml"
 
 # Create log dir
 if ! [[ -d "$LOG_DIR" ]]; then
