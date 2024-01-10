@@ -9,7 +9,7 @@ The commands have been grouped into three main categories:
 
 ## User Guide
 
-Our user guide for setting up your EC2 instance with the OrangeHRM AMI can be found [here](https://docs.google.com/document/d/1E4mSuN21M54IHjWaXx9DNE1SEtm9EEvj9QWffeVHbm4/edit?usp=sharing). This README will only provide list the available commands.
+Our user guide for setting up your EC2 instance with the OrangeHRM AMI can be found [here](https://starterhelp.orangehrm.com/hc/en-us/categories/12036145530140-AWS-Guide). This README will only provide list the available commands.
 
 ## Developer Guide
 To install this RPM on a fresh EC2 instance of Amazon Linux 2023, do the following:
