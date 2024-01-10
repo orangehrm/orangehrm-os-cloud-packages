@@ -14,7 +14,7 @@ sudo dnf install git
 ```
 5. Run script to setup tests
 ```
-curl -o- https://raw.githubusercontent.com/devishke-orange/orangehrm-aws/main/tests/setup_tests.sh | bash
+curl -o- https://raw.githubusercontent.com/orangehrm/os-cloud/main/aws/tests/setup_tests.sh | bash
 ```
 
 ## Running the tests
@@ -22,11 +22,11 @@ curl -o- https://raw.githubusercontent.com/devishke-orange/orangehrm-aws/main/te
 1. Install [Blazemeter Taurus](https://gettaurus.org/install/Installation/#Linux) to your local machine
 2. Clone this repo to your local machine
 ```
-git clone https://github.com/devishke-orange/orangehrm-aws
+git clone https://github.com/orangehrm/os-cloud
 ```
 3. cd to tests folder
 ```
-cd tests
+cd aws/tests
 ```
 4. Create orangehrm_config.yml from orangehrm.config.yml.dist and change the required values
 ```

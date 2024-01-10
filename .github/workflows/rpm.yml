@@ -45,8 +45,8 @@ jobs:
       - name: Create rpm package
         run: docker exec --user ec2-user AWS rpmbuild -ba /home/ec2-user/rpmbuild/SPECS/orangehrm.spec
   
-      # - name: Lint RPM package
-      #   run: docker exec --user ec2-user AWS rpmlint /home/ec2-user/rpmbuild/RPMS/noarch/$(ls /home/ec2-user/rpmbuild/RPMS/noarch)
+      - name: Lint RPM package
+        run: docker exec --user ec2-user AWS rpmlint /home/ec2-user/rpmbuild/RPMS/noarch/$(ls /home/ec2-user/rpmbuild/RPMS/noarch)
 
       - name: Copy noarch folder to base dir
         run: sudo cp -r build/ec2-user/rpmbuild/RPMS/noarch .

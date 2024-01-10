@@ -1,5 +1,3 @@
-#!/bin/bash
-
 # OrangeHRM AWS CLI assists AWS Marketplace Subscribers
 # with managing their installation of OrangeHRM Starter
 # Copyright (C) 2024 OrangeHRM Inc., http://www.orangehrm.com
@@ -34,6 +32,7 @@ fi
 
 password=""
 answer="no"
+version=$(grep "    image: orangehrm/orangehrm:" "$OHRM_DIR/compose.yml" | sed 's/    image: orangehrm\/orangehrm://')
 
 check_prereq () {
 	print_progress_message "Checking pre-requisites" wip
@@ -106,13 +105,8 @@ show_start_message() {
 	printf "\n%bStarting the OrangeHRM installation%b\n\n" "$GC" "$EC" >&3
 }
 
-# Provide the error message as the first argument
-print_installer_input_error() {
-	printf "%b%s%b\n" "$RC" "$1" "$EC" >&3
-}
-
 # Provide the prompt as the first argument
-# Provde the hint as the second argument
+# Provide the hint as the second argument
 # It will be printed as => "message [hint]\n"
 print_installer_input_prompt() {
 	printf "%b [%b%s%b]\n" "$1" "$YC" "$2" "$EC" >&3
@@ -121,7 +115,11 @@ print_installer_input_prompt() {
 get_license_agreement() {
 	print_installer_input_prompt "Please read and agree to the following license" "press enter"
 	read -r
-	less -P "Press ENTER to read more, press q to quit" "$ASSET_DIR/license.txt" >&3
+	if (( $( echo "$version>=$NEW_LICENSE_VERSION" | bc -l ) )); then
+	  less -P "Press ENTER to read more, press q to quit" "$ASSET_DIR/license.txt" >&3
+	else
+	  less -P "Press ENTER to read more, press q to quit" "$ASSET_DIR/license-old.txt" >&3
+	fi
 	tput cuu1 >&3
 	tput cuu1 >&3
 	tput el >&3
@@ -232,13 +230,8 @@ install_orangehrm() {
 	maintenance_mode disable
 }
 
-# TO-DO change!!
 write_install_file() {
-	local version
-	version=$(grep "    image: orangehrm/orangehrm:" "$COMPOSE_FILE" | sed 's/    image: orangehrm\/orangehrm://')
-
 	{
-		printf "#!/bin/bash\n\n"
 		printf "# DO NOT DELETE THIS FILE!\n"
 		printf "# This file contains information about the installed version of OrangeHRM\n\n"
 		printf "export OHRM_VERSION=%s" "$version"

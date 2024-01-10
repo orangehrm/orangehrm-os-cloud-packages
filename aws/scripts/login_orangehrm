@@ -1,6 +1,4 @@
-#!/bin/bash
-
-# OrangeHRM AWS CLI assists AWS Marketplace Subscribers
+# OrangeHRM AWS CLI assists AWS Marketplace Subscribers 
 # with managing their installation of OrangeHRM Starter
 # Copyright (C) 2024 OrangeHRM Inc., http://www.orangehrm.com
 #

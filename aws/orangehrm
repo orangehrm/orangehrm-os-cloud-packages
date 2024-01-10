@@ -24,7 +24,7 @@ if [[ "$UID" -eq 0 ]]; then
 fi
 
 # Script and asset directories
-export OHRM_DIR=/opt/orangehrm
+export OHRM_DIR=/usr/share/orangehrm
 export SCRIPT_DIR="$OHRM_DIR/scripts"
 export HELPER_SCRIPTS_DIR="$SCRIPT_DIR/helper_scripts"
 export BACKUP_SCRIPTS_DIR="$SCRIPT_DIR/backup_scripts"
@@ -54,7 +54,10 @@ export ORANGEHRM_WEBROOT_VOLUME="orangehrm_orangehrm-webroot"
 export ORANGEHRM_DB_VOLUME="orangehrm_orangehrm-db"
 
 # Update URL
-export UPDATE_URL="https://raw.githubusercontent.com/orangehrm/os-cloud/master/aws/compose.yml"
+export UPDATE_URL="https://raw.githubusercontent.com/orangehrm/os-cloud/main/aws/compose.yml"
+
+# License changed version
+export NEW_LICENSE_VERSION="5.6"
 
 # Create log dir
 if ! [[ -d "$LOG_DIR" ]]; then

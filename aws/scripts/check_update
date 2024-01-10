@@ -1,5 +1,3 @@
-#!/bin/bash
-
 # OrangeHRM AWS CLI assists AWS Marketplace Subscribers
 # with managing their installation of OrangeHRM Starter
 # Copyright (C) 2024 OrangeHRM Inc., http://www.orangehrm.com
@@ -30,13 +28,16 @@ fi
 # shellcheck source=/home/ec2-user/.orangehrm/.installed
 source "$INSTALL_FILE"
 
-newVersion=$(curl --silent "$UPDATE_URL" | grep "    image: orangehrm/orangehrm:" | sed 's/    image: orangehrm\/orangehrm://')
+new_version=$(curl --silent "$UPDATE_URL" | grep "    image: orangehrm/orangehrm:" | sed 's/    image: orangehrm\/orangehrm://')
 
-if [[ "$OHRM_VERSION" = "$newVersion" ]]; then
+if [[ "$OHRM_VERSION" = "$new_version" ]]; then
     printf "\n%bOrangeHRM is up to date%b\n\n" "$GC" "$EC" >&3
 else
     ohrm_print "\n"
-    ohrm_print "A new version of OrangeHRM is available!\n"
+    ohrm_print "OrangeHRM $new_version is now available!\n"
+    if (( $( echo "$OHRM_VERSION<$NEW_LICENSE_VERSION" | bc -l ) )); then
+      ohrm_print "NOTE: The license of OrangeHRM Starter has been upgraded from GPLv2 to GPLv3.\n"
+    fi
     printf "Please run '%borangehrm update%b' to upgrade!\n\n" "$GC" "$EC" >&3
 fi
 
