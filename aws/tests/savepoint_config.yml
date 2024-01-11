@@ -1,0 +1,8 @@
+services:
+- module: shellexec
+  prepare:  
+  - echo "Creating save-point"
+  - curl --request POST --url ${BASE_URL}/functional-testing/database/create-savepoint --data 'savepointName=Intial' --silent
+  post-process:
+  - echo "Restoring save-point"
+  - curl --request POST --url ${BASE_URL}/functional-testing/database/restore-to-savepoint --data 'savepointName=Intial' --silent

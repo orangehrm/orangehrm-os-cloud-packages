@@ -1,0 +1,58 @@
+name: RPM Build
+
+on: [ push, pull_request ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install docker
+        run: sudo apt-get install docker -y
+
+      - name: Create build dir
+        run: mkdir build
+
+      - name: Setup Amazon Linux container
+        run: |
+          docker run -dit --name AWS --mount type=bind,source="$(pwd)"/build/,target=/home/ amazonlinux:latest
+          docker exec AWS dnf install gcc rpm-build rpm-devel rpmlint make python bash diffutils patch rpmdevtools -y
+          docker exec AWS adduser ec2-user
+          docker exec --user ec2-user AWS rpmdev-setuptree
+
+      - name: Set version variable
+        run: echo "RPM_VERSION=$(grep Version aws/orangehrm.spec | sed 's/................//')" >> $GITHUB_ENV
+
+      - name: Copy files to rpmbuild
+        run: |
+          mkdir -p build/orangehrm-aws-cli-${RPM_VERSION}
+          cp aws/compose.yml build/orangehrm-aws-cli-${RPM_VERSION}
+          cp aws/orangehrm build/orangehrm-aws-cli-${RPM_VERSION}
+          cp -r aws/assets build/orangehrm-aws-cli-${RPM_VERSION}
+          cp -r aws/scripts build/orangehrm-aws-cli-${RPM_VERSION}
+          pushd build
+          tar -cf orangehrm-aws-cli-${RPM_VERSION}.tar.gz orangehrm-aws-cli-${RPM_VERSION}
+          popd
+          sudo mv build/orangehrm-aws-cli-${RPM_VERSION}.tar.gz build/ec2-user/rpmbuild/SOURCES
+          sudo mv aws/orangehrm.spec build/ec2-user/rpmbuild/SPECS
+        
+      - name: Lint spec file
+        run: docker exec --user ec2-user AWS rpmlint /home/ec2-user/rpmbuild/SPECS/orangehrm.spec
+
+      - name: Create rpm package
+        run: docker exec --user ec2-user AWS rpmbuild -ba /home/ec2-user/rpmbuild/SPECS/orangehrm.spec
+  
+      - name: Lint RPM package
+        run: docker exec --user ec2-user AWS rpmlint /home/ec2-user/rpmbuild/RPMS/noarch/$(ls /home/ec2-user/rpmbuild/RPMS/noarch)
+
+      - name: Copy noarch folder to base dir
+        run: sudo cp -r build/ec2-user/rpmbuild/RPMS/noarch .
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binary-rpm
+          path: ./noarch/*.rpm

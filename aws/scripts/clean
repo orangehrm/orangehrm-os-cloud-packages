@@ -1,0 +1,75 @@
+# OrangeHRM AWS CLI assists AWS Marketplace Subscribers
+# with managing their installation of OrangeHRM Starter
+# Copyright (C) 2024 OrangeHRM Inc., http://www.orangehrm.com
+#
+# OrangeHRM AWS CLI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# OrangeHRM AWS CLI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with OrangeHRM AWS CLI.  If not, see <https://www.gnu.org/licenses/>.
+
+exec 3>&1 1>>"$LOG_DIR/orangehrm_clean.log" 2>&1
+set -x
+set -e
+
+if [[ -z  $OHRM_DIR ]]; then
+    ohrm_print "\nPlease run this script from the OrangeHRM command\n"
+    ohrm_print "i.e. orangehrm clean\n\n"
+    exit 1;
+fi
+
+answer="no"
+
+printf "\n%bWARNING%b: You are about to completely remove all data and backups related to your installation of OrangeHRM!\n\n" "$RC" "$EC" >&3
+printf "Are you sure you want to continue? [%byes/no%b]\n" "$YC" "$EC" >&3
+
+read -rp "> " answer 2>&3
+
+while ! yes_no_check "$answer"; do
+    printf "Please enter yes or no\n" >&3
+    read -rp "> " answer 2>&3
+done
+
+quit_if_input "$NO_REGEX" "$answer" "\nCleaning process aborted!\n\n"
+
+ohrm_print "\n"
+
+print_progress_message "Wiping OrangeHRM data" wip
+
+docker compose -f "$COMPOSE_FILE" down
+docker system prune -af
+
+print_progress_message "Wiping OrangeHRM data" success rewrite
+
+print_progress_message "Removing OrangeHRM volumes" wip
+if docker volume inspect "$ORANGEHRM_WEBROOT_VOLUME"; then
+    docker volume rm "$ORANGEHRM_WEBROOT_VOLUME"
+fi
+
+if docker volume inspect "$ORANGEHRM_DB_VOLUME"; then
+    docker volume rm "$ORANGEHRM_DB_VOLUME"
+fi
+
+print_progress_message "Removing OrangeHRM volumes" success rewrite
+
+print_progress_message "Removing OrangeHRM files" wip
+cp -r "$LOG_DIR" "$HOME/ohrm_logs_$(date +"%Y_%m_%d_%H_%M_%S")"
+rm -rf "$OHRM_HOME_DIR"
+print_progress_message "Removing OrangeHRM files" success rewrite
+
+ohrm_print "\n"
+
+ohrm_print "All data related to orangehrm has been wiped!\n\n"
+printf "Your log files have been stored at %s\n" "$HOME/ohrm_logs_$(date +"%Y_%m_%d_%H_%M_%S")" >&3
+printf "To reinstall the system please run '%borangehrm install%b'\n\n" "$GC" "$EC" >&3
+
+ohrm_print "NOTE: Generated SSL certificates and server configurations have not been removed\n\n"
+
+exit 0

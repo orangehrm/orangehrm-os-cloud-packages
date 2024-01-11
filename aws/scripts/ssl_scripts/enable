@@ -1,0 +1,116 @@
+# OrangeHRM AWS CLI assists AWS Marketplace Subscribers
+# with managing their installation of OrangeHRM Starter
+# Copyright (C) 2024 OrangeHRM Inc., http://www.orangehrm.com
+#
+# OrangeHRM AWS CLI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# OrangeHRM AWS CLI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with OrangeHRM AWS CLI.  If not, see <https://www.gnu.org/licenses/>.
+
+exec 3>&1 1>>"$LOG_DIR/orangehrm_ssl_enable.log" 2>&1
+set -x
+set -e
+
+if [[ -z  $OHRM_DIR ]]; then
+    ohrm_print "\nPlease run this script from the OrangeHRM command\n"
+    ohrm_print "i.e. orangehrm ssl enable\n\n"
+    exit 1
+fi
+
+ohrm_print "\n"
+
+ohrm_print "In order to generate SSL certificates, the OrangeHRM command line utility employs Certbot by the Electronic Frontier Foundation\n"
+ohrm_print "Certbot is a free, open source software tool for automatically using Let's Encrypt certificates on manually-administrated websites to enable HTTPS.\n"
+ohrm_print "To learn more about certbot, please visit https://certbot.eff.org/\n\n"
+
+read -rp "Press ENTER to continue" 2>&3
+
+ohrm_print "\n"
+
+print_progress_message "Checking for existing certificates" wip
+
+if ! docker exec certbot certbot certificates | grep "No certificates found"; then
+    print_progress_message "Checking for existing certificates" error rewrite
+    ohrm_print "You already have some generated certificates available for use.\n"
+    docker exec certbot certbot certificates >&3
+    exit 0
+fi
+
+print_progress_message "Checking for existing certificates" success rewrite
+
+print_progress_message "Preparing OrangeHRM System" wip
+
+htaccess_ssl_configure
+
+print_progress_message "Preparing OrangeHRM System" success rewrite
+
+ohrm_print "\n"
+
+ohrm_print "Your OrangeHRM instance is now prepared for SSL certificate generation\n"
+ohrm_print "The OrangeHRM command line utility will now run Certbot\n\n"
+
+if docker exec -it certbot certbot certonly --webroot --webroot-path /var/www/html >&3; then
+    print_progress_message "Certificates generated" success
+    print_progress_message "Preparing server" wip
+
+    # Add read permission within container for SSL certificates
+    docker exec orangehrm chmod 400 /etc/letsencrypt
+
+    tmp_dir="${OHRM_HOME_DIR}/.tmp/$(echo $RANDOM | md5sum | head -c 10)"
+    mkdir -p "$tmp_dir"
+    
+    docker exec certbot certbot certificates > "$tmp_dir/cert.txt"
+
+    grep '  Certificate Name: ' < "$tmp_dir/cert.txt" | sed 's/  Certificate Name: //g' > "$tmp_dir/cert_name.txt"
+    mapfile -t certificate_names < "$tmp_dir/cert_name.txt"
+
+    grep "    Domains: " < "$tmp_dir/cert.txt" | sed 's/    Domains: //g' | tr '\n' ' ' > "$tmp_dir/domain_name.txt"
+    mapfile -t -d " " domains < "$tmp_dir/domain_name.txt"
+
+    sed 's/    //g' "$tmp_dir/cert.txt"  | sed 's/  //g' | tr '\n' ',' > "$tmp_dir/cert-grep.txt"
+
+    for domain in "${domains[@]}"; do
+        for cert_name in "${certificate_names[@]}"; do
+            if grep -o "Certificate Name: $cert_name,[^,]*,[^,]*,Domains: [^,]*$domain" "$tmp_dir/cert-grep.txt"; then
+                if ! docker exec orangehrm find "/etc/apache2/sites-enabled/$domain.conf"; then
+                    docker cp "$SSL_CONF_FILE" "orangehrm:/etc/apache2/sites-available/$domain.conf"
+                    docker exec orangehrm sed -i "s/YOUR_SERVER_NAME/$domain/g" "/etc/apache2/sites-available/$domain.conf"
+                    docker exec orangehrm sed -i "s/YOUR_CERT_NAME/$cert_name/g" "/etc/apache2/sites-available/$domain.conf"
+                    docker exec orangehrm ln -s "../sites-available/$domain.conf" "/etc/apache2/sites-enabled/$domain.conf"
+                fi
+            fi
+        done
+    done    
+
+    docker exec orangehrm rm -f /etc/apache2/sites-enabled/000-default.conf
+    apache_enable_ssl
+
+    # Remove tmp directory
+    rm -rf "$tmp_dir"
+
+    # Cache folder permissions
+    docker exec orangehrm chmod -R 775 /var/www/html/src/cache
+
+    print_progress_message "Preparing server" success rewrite
+
+    ohrm_print "You can now access OrangeHRM at the following domains:\n"
+    for domain in "${domains[@]}"; do
+      printf "%s %bhttps://%s%b\n" "-" "$GC" "$domain" "$EC" >&3
+    done
+
+    ohrm_print "\n"
+
+    printf "To configure auto-renewal of your SSL certificates, please run '%borangehrm ssl auto-renew%b' from your terminal\n\n" "$GC" "$EC" >&3
+else
+    ohrm_print "Something went wrong! Please try again\n\n"
+fi
+
+ohrm_print "\n"

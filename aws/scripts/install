@@ -1,0 +1,284 @@
+# OrangeHRM AWS CLI assists AWS Marketplace Subscribers
+# with managing their installation of OrangeHRM Starter
+# Copyright (C) 2024 OrangeHRM Inc., http://www.orangehrm.com
+#
+# OrangeHRM AWS CLI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# OrangeHRM AWS CLI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with OrangeHRM AWS CLI.  If not, see <https://www.gnu.org/licenses/>.
+
+exec 3>&1 1>>"$LOG_DIR/orangehrm_install.log" 2>&1
+set -x
+set -e
+
+if [[ -z  $OHRM_DIR ]]; then
+    printf "\nPlease run this script from the OrangeHRM command\n" >&3
+    printf "i.e. orangehrm install\n\n" >&3
+    exit 1;
+fi
+
+if [[ -f "$INSTALL_FILE" ]]; then
+	printf "\n%bOrangeHRM is already installed%b\n\n" "$GC" "$EC" >&3
+	exit 0
+fi
+
+password=""
+answer="no"
+version=$(grep "    image: orangehrm/orangehrm:" "$OHRM_DIR/compose.yml" | sed 's/    image: orangehrm\/orangehrm://')
+
+check_prereq () {
+	print_progress_message "Checking pre-requisites" wip
+
+	# Check if docker is installed
+	if ! [[ $(command -v docker) ]]; then
+		print_progress_message "Checking pre-requisites" error rewrite
+		ohrm_print "\n"
+		ohrm_print "Docker is not installed!\n\n"
+		exit 0
+	fi
+
+	# Check if the docker service is active
+	if [[ $(sudo systemctl is-active docker) = "inactive" ]]; then
+		print_progress_message "Checking pre-requisites" error rewrite
+		ohrm_print "\n"
+		ohrm_print "Docker is not active!\n"
+		ohrm_print "Please activate docker using 'sudo systemctl start docker' and retry the installation\n"
+		ohrm_print "If you want docker to start on boot you can run 'sudo systemctl enable docker' as well\n\n"
+		exit 0
+	fi
+
+	# Check if docker compose is installed
+	if docker compose version 2>&1 | grep -q "docker: 'compose' is not a docker command"; then
+		print_progress_message "Checking pre-requisites" error rewrite
+		ohrm_print "\n"
+		ohrm_print "Docker Compose is not installed!\n\n"
+		exit 0
+	fi
+
+	if ! [[ $(command -v pwgen) ]]; then
+		print_progress_message "Checking pre-requisites" error rewrite
+		ohrm_print "\n"
+		ohrm_print "pwgen is not installed!\n\n"
+		exit 0
+	fi
+
+	print_progress_message "Checking pre-requisites" success rewrite
+
+	ohrm_print "\n"
+}
+
+early_exit () {
+	ohrm_print "\n"
+	printf "%bQuitting the installation%b\n" "$RC" "$EC" >&3
+	print_progress_message "Cleaning install files" wip
+
+	if [[ -f "$COMPOSE_FILE" ]]; then
+		docker compose --file "$COMPOSE_FILE" down
+	fi
+	docker system prune --all --force
+	if docker volume inspect orangehrm_orangehrm-data; then
+		docker volume rm orangehrm_orangehrm-data
+	fi	
+	
+	print_progress_message "Cleaning install files" success rewrite
+	printf "\nYou can run '%borangehrm install%b' to restart the installation\n\n" "$GC" "$EC" >&3
+
+	exit 0
+}
+
+reset_answer() {
+	answer="no"
+}
+
+show_start_message() {
+	# Enabling 256 color support to print logo with color
+	TERM=xterm-256color
+	sh "$HELPER_SCRIPTS_DIR/logo" >&3
+	printf "\n%bStarting the OrangeHRM installation%b\n\n" "$GC" "$EC" >&3
+}
+
+# Provide the prompt as the first argument
+# Provide the hint as the second argument
+# It will be printed as => "message [hint]\n"
+print_installer_input_prompt() {
+	printf "%b [%b%s%b]\n" "$1" "$YC" "$2" "$EC" >&3
+}
+
+get_license_agreement() {
+	print_installer_input_prompt "Please read and agree to the following license" "press enter"
+	read -r
+	if (( $( echo "$version>=$NEW_LICENSE_VERSION" | bc -l ) )); then
+	  less -P "Press ENTER to read more, press q to quit" "$ASSET_DIR/license.txt" >&3
+	else
+	  less -P "Press ENTER to read more, press q to quit" "$ASSET_DIR/license-old.txt" >&3
+	fi
+	tput cuu1 >&3
+	tput cuu1 >&3
+	tput el >&3
+	print_installer_input_prompt "Do you agree to the license" "yes/no"
+	read -rp "> " answer 2>&3
+	
+	while ! yes_no_check "$answer"; do
+		ohrm_print "Please enter yes or no\n"
+		read -rp "> " answer 2>&3
+	done
+
+	if [[ $answer =~ $NO_REGEX ]]; then
+		early_exit
+	fi
+
+	reset_answer
+
+	ohrm_print "\n"
+}
+
+write_env() {
+	rm -f "$ENV_FILE"
+	local db_pw
+	# Create a password using pwgen with the following attributes:
+	# 	32 characters long
+	#	Capital letters
+	#	Numbers
+	#	Avoiding special characters as certain characters cause issues
+	db_pw="$(pwgen -c -n 32 1)"
+	printf "MARIADB_ROOT_PW=%s" "$(echo "$db_pw" | base64)" > "$ENV_FILE"
+}
+
+create_containers() {
+	print_progress_message "Creating the containers" wip
+
+	cp -f "$OHRM_DIR/compose.yml" "$COMPOSE_FILE"
+
+  write_env
+  # shellcheck source=/home/ec2-user/.orangehrm/.env
+  source "$ENV_FILE"
+
+  # Create temporary env with decrypted password
+  printf "MARIADB_ROOT_PW=%s" "$(echo "$MARIADB_ROOT_PW" | base64 -d)" > "$ENV_FILE.tmp"
+
+  # Start other containers
+	docker compose --env-file "$ENV_FILE.tmp" --file "$COMPOSE_FILE" up --detach --remove-orphans
+
+	maintenance_mode enable
+	rm -f "$ENV_FILE.tmp"
+	print_progress_message "Creating the containers" success rewrite
+}
+
+generate_random_user_password() {
+	# This will generate 1 password of length 7 with no capitals or numerals
+	# When the user logs in, they will be prompted to change their password
+	password="$(pwgen -0 -A 7 1)"
+}
+
+update_configuration() {
+	print_progress_message "Updating install configuration" wip
+
+	# shellcheck source=/home/ec2-user/.orangehrm/.env
+	source "$ENV_FILE"
+	local db_pw_decrypt
+	db_pw_decrypt="$(echo "$MARIADB_ROOT_PW" | base64 -d)"
+
+  local line
+  local installer_command_file
+
+	installer_command_file="/var/www/html/installer/Command/InstallOnNewDatabaseCommand.php"
+
+  for line in {343..357}; do
+    docker exec orangehrm sed -i "343 d" $installer_command_file
+  done
+
+  for line in {146..180}; do
+    docker exec orangehrm sed -i "146 d" $installer_command_file
+  done
+
+  docker exec orangehrm sed -i '99d;100d;101d' $installer_command_file
+  docker exec orangehrm sed -i '100a \ \ \ \ \ \ \ \ \$this\->databaseInformation();' $installer_command_file
+  docker exec orangehrm sed -i '101a \ \ \ \ \ \ \ \ \$this\->systemCheck();' $installer_command_file
+
+  docker exec orangehrm sed -i "s/\$dbHost/\"mariadb\"/" $installer_command_file
+  docker exec orangehrm sed -i "s/\$dbPort/\"3306\"/" $installer_command_file
+  docker exec orangehrm sed -i "s/\$dbName/\"orangehrm\"/" $installer_command_file
+  docker exec orangehrm sed -i "s/\$dbUser/\"root\"/" $installer_command_file
+  docker exec orangehrm sed -i "s/\$dbPassword/\"$db_pw_decrypt\"/" $installer_command_file
+  docker exec orangehrm sed -i "s/\`\$ohrmDbUser\`/root/" $installer_command_file
+  docker exec orangehrm sed -i "s/\$ohrmDbUser/\"root\"/" $installer_command_file
+  docker exec orangehrm sed -i "s/\$ohrmDbPassword/\"$db_pw_decrypt\"/" $installer_command_file
+  docker exec orangehrm sed -i "s/\$useSameDbUser/true/" $installer_command_file
+  docker exec orangehrm sed -i "s/\$password/\"$password\"/" $installer_command_file
+
+	print_progress_message "Updating install configuration" success rewrite
+}
+
+install_orangehrm() {
+  ohrm_print "\n"
+  ohrm_print "The OrangeHRM CLI Installation will start now.\n\n"
+
+	# Small period for database container to finish initializing.
+	# Installation will fail with a "Connection Refused" error without this
+	sleep 5
+
+	docker exec -it orangehrm php installer/console install:on-new-database >&3
+
+	maintenance_mode disable
+}
+
+write_install_file() {
+	{
+		printf "# DO NOT DELETE THIS FILE!\n"
+		printf "# This file contains information about the installed version of OrangeHRM\n\n"
+		printf "export OHRM_VERSION=%s" "$version"
+	} > "$INSTALL_FILE"
+
+	printf "%bOrangeHRM %s is finished installing!%b\n\n" "$GC" "$version" "$EC" >&3
+}
+
+enable_ssl_mod() {
+	# Calculate md5sum of .htaccess files and store for SSL checks
+	docker exec orangehrm md5sum .htaccess > "$HTACCESS_INTEGRITY_ORIGINAL_FILE"
+	docker exec orangehrm sed -i "3 d" /var/www/html/.htaccess
+	docker exec orangehrm sed -i '2 a RedirectMatch 404 /(?!\\.well\\-known)\\..*$' /var/www/html/.htaccess
+	docker exec orangehrm md5sum .htaccess > "$HTACCESS_INTEGRITY_SSL_FILE"
+
+	apache_enable_ssl
+}
+
+print_login_steps() {
+	# Get AWS Instance IP
+	# https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
+	local token
+	local ohrmIP
+
+	token=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+	ohrmIP=$(curl -s -H "X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/public-ipv4)
+
+	ohrm_print "You can log in to your system with your admin account username and the following password:\n"
+	printf "  Password: %b%s%b\n\n" "$GC" "$password" "$EC" >&3
+
+	ohrm_print "You will be prompted to change your password on first login (you will need to change your password before accessing the system via the mobile application)\n\n"
+
+	printf "Visit %b%s%b to access your OrangeHRM system\n\n" "$GC" "http://$ohrmIP" "$EC" >&3
+}
+
+# Catch CTRL-C
+trap early_exit SIGINT
+
+show_start_message
+check_prereq
+get_license_agreement
+create_containers
+generate_random_user_password
+update_configuration
+install_orangehrm
+write_install_file
+enable_ssl_mod
+print_login_steps
+
+exit 0

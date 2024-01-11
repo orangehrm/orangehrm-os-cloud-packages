@@ -1,0 +1,90 @@
+# OrangeHRM AWS CLI assists AWS Marketplace Subscribers
+# with managing their installation of OrangeHRM Starter
+# Copyright (C) 2024 OrangeHRM Inc., http://www.orangehrm.com
+#
+# OrangeHRM AWS CLI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# OrangeHRM AWS CLI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with OrangeHRM AWS CLI.  If not, see <https://www.gnu.org/licenses/>.
+
+exec 3>&1 1>>"$LOG_DIR/orangehrm_ssl_restore.log" 2>&1
+set -x
+set -e
+
+if [[ -z $OHRM_DIR ]]; then
+    printf "\nPlease run this script from the OrangeHRM command\n" >&3
+    printf "i.e. orangehrm ssl\n\n" >&3
+    exit 1;
+fi
+
+ohrm_print "This tool assists you with restoring your SSL configuration\n\n"
+
+print_progress_message "Checking for existing certificates" wip
+
+if docker exec certbot certbot certificates | grep "No certificates found"; then
+    ohrm_print "You have not generated any certificates\n"
+    printf "You can run '%borangehrm ssl enable%b'\n\n" "$GC" "$EC" >&3
+    exit 0
+fi
+
+print_progress_message "Checking for existing certificates" success rewrite
+
+ohrm_print "Some existing certificates have been detected! Would you like to restore the server configuration?\n"
+
+read -rp "Press ENTER to continue" 2>&3
+
+docker exec orangehrm chmod 400 /etc/letsencrypt
+
+tmp_dir="${OHRM_HOME_DIR}/.tmp/$(echo $RANDOM | md5sum | head -c 10)"
+mkdir -p "$tmp_dir"
+
+# Determine certificate names and associated domains by using certbot certificates
+
+docker exec certbot certbot certificates > "$tmp_dir/cert.txt"
+
+grep '  Certificate Name: ' < "$tmp_dir/cert.txt" | sed 's/  Certificate Name: //g' > "$tmp_dir/cert_name.txt"
+mapfile -t certificate_names < "$tmp_dir/cert_name.txt"
+
+grep "    Domains: " < "$tmp_dir/cert.txt" | sed 's/    Domains: //g' | tr '\n' ' ' > "$tmp_dir/domain_name.txt"
+mapfile -t -d " " domains < "$tmp_dir/domain_name.txt"
+
+sed 's/    //g' "$tmp_dir/cert.txt"  | sed 's/  //g' | tr '\n' ',' > "$tmp_dir/cert-grep.txt"
+
+restart_server=false
+
+for domain in "${domains[@]}"; do
+    for cert_name in "${certificate_names[@]}"; do
+        if grep -o "Certificate Name: $cert_name,[^,]*,[^,]*,Domains: [^,]*$domain" "$tmp_dir/cert-grep.txt"; then
+            if ! docker exec orangehrm find "/etc/apache2/sites-enabled/$domain.conf"; then
+                restart_server=true
+                docker cp "$SSL_CONF_FILE" "orangehrm:/etc/apache2/sites-available/$domain.conf"
+                docker exec orangehrm sed -i "s/YOUR_SERVER_NAME/$domain/g" "/etc/apache2/sites-available/$domain.conf"
+                docker exec orangehrm sed -i "s/YOUR_CERT_NAME/$cert_name/g" "/etc/apache2/sites-available/$domain.conf"
+                docker exec orangehrm ln -s "../sites-available/$domain.conf" "/etc/apache2/sites-enabled/$domain.conf"
+                printf "%s configuration restored!\n" "$domain" >&3
+            else
+                printf "%s configuration already exists!\n" "$domain" >&3
+            fi
+        fi
+    done
+done
+
+if [[ $restart_server = "true" ]]; then
+    htaccess_ssl_configure
+    apache_enable_ssl
+
+    ohrm_print "Your server configurations have been restored!\n"
+else
+    ohrm_print "There are no configurations to restore!\n"
+fi
+
+# Remove tmp directory
+rm -rf "$OHRM_HOME_DIR/.tmp"
