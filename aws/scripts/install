@@ -191,17 +191,17 @@ update_configuration() {
 
 	installer_command_file="/var/www/html/installer/Command/InstallOnNewDatabaseCommand.php"
 
-  for line in {343..357}; do
-    docker exec orangehrm sed -i "343 d" $installer_command_file
+  for line in {342..356}; do
+    docker exec orangehrm sed -i "342 d" $installer_command_file
   done
 
-  for line in {146..180}; do
-    docker exec orangehrm sed -i "146 d" $installer_command_file
+  for line in {145..179}; do
+    docker exec orangehrm sed -i "145 d" $installer_command_file
   done
 
-  docker exec orangehrm sed -i '99d;100d;101d' $installer_command_file
-  docker exec orangehrm sed -i '100a \ \ \ \ \ \ \ \ \$this\->databaseInformation();' $installer_command_file
-  docker exec orangehrm sed -i '101a \ \ \ \ \ \ \ \ \$this\->systemCheck();' $installer_command_file
+  docker exec orangehrm sed -i '98d;99d;100d' $installer_command_file
+  docker exec orangehrm sed -i '99a \ \ \ \ \ \ \ \ \$this\->databaseInformation();' $installer_command_file
+  docker exec orangehrm sed -i '100a \ \ \ \ \ \ \ \ \$this\->systemCheck();' $installer_command_file
 
   docker exec orangehrm sed -i "s/\$dbHost/\"mariadb\"/" $installer_command_file
   docker exec orangehrm sed -i "s/\$dbPort/\"3306\"/" $installer_command_file
