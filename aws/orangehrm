@@ -56,9 +56,6 @@ export ORANGEHRM_DB_VOLUME="orangehrm_orangehrm-db"
 # Update URL
 export UPDATE_URL="https://raw.githubusercontent.com/orangehrm/os-cloud/main/aws/compose.yml"
 
-# License changed version
-export NEW_LICENSE_VERSION="5.6"
-
 # Create log dir
 if ! [[ -d "$LOG_DIR" ]]; then
     mkdir -p "$LOG_DIR"

@@ -115,11 +115,7 @@ print_installer_input_prompt() {
 get_license_agreement() {
 	print_installer_input_prompt "Please read and agree to the following license" "press enter"
 	read -r
-	if (( $( echo "$version>=$NEW_LICENSE_VERSION" | bc -l ) )); then
-	  less -P "Press ENTER to read more, press q to quit" "$ASSET_DIR/license.txt" >&3
-	else
-	  less -P "Press ENTER to read more, press q to quit" "$ASSET_DIR/license-old.txt" >&3
-	fi
+	less -P "Press ENTER to read more, press q to quit" "$ASSET_DIR/license.txt" >&3
 	tput cuu1 >&3
 	tput cuu1 >&3
 	tput el >&3
