@@ -5,7 +5,7 @@ Distribution:   Amazon Linux 2023
 Summary:        Easily install and manage OrangeHRM Starter on AWS!
 
 License:        GPLv3
-URL:            https://github.com/orangehrm/os-cloud
+URL:            https://github.com/orangehrm/orangehrm-os-cloud-packages
 Source0:        orangehrm-aws-cli-%{version}.tar.gz
 
 Requires:       bash
@@ -78,6 +78,7 @@ chown -R ec2-user:ec2-user %{buildroot}/%{_datadir}/orangehrm
 - Removed NEW_LICENSE_VERSION variable from orangehrm script
 - Removed bc dependency
 - Removed license-old.txt
+- Updated repository URL
 * Wed Jan 10 2024 devishke-orange <devishke@orangehrm.com> - 0.0.3-3.amzn2023
 - Added new license txt
 - Added bc dependency

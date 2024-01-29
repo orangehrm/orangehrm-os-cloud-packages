@@ -54,7 +54,7 @@ export ORANGEHRM_WEBROOT_VOLUME="orangehrm_orangehrm-webroot"
 export ORANGEHRM_DB_VOLUME="orangehrm_orangehrm-db"
 
 # Update URL
-export UPDATE_URL="https://raw.githubusercontent.com/orangehrm/os-cloud/main/aws/compose.yml"
+export UPDATE_URL="https://raw.githubusercontent.com/orangehrm/orangehrm-os-cloud-packages/main/aws/compose.yml"
 
 # Create log dir
 if ! [[ -d "$LOG_DIR" ]]; then
