@@ -35,9 +35,6 @@ if [[ "$OHRM_VERSION" = "$new_version" ]]; then
 else
     ohrm_print "\n"
     ohrm_print "OrangeHRM $new_version is now available!\n"
-    if (( $( echo "$OHRM_VERSION<$NEW_LICENSE_VERSION" | bc -l ) )); then
-      ohrm_print "NOTE: The license of OrangeHRM Starter has been upgraded from GPLv2 to GPLv3.\n"
-    fi
     printf "Please run '%borangehrm update%b' to upgrade!\n\n" "$GC" "$EC" >&3
 fi
 

@@ -42,10 +42,6 @@ check_version() {
     fi
 
     printf "\n%bOrangeHRM $new_version is now available!%b\n" "$GC" "$EC" >&3
-
-    if (( $( echo "$OHRM_VERSION<$NEW_LICENSE_VERSION" | bc -l ) )); then
-      ohrm_print "NOTE: The license of OrangeHRM Starter has been upgraded from GPLv2 to GPLv3.\n"
-    fi
 }
 
 upgrader_confirm()  {

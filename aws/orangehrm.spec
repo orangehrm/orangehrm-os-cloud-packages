@@ -1,17 +1,16 @@
 Name:           orangehrm-aws-cli
-Version:        0.0.3
-Release:        3%{?dist}
+Version:        0.0.4
+Release:        4%{?dist}
 Distribution:   Amazon Linux 2023
 Summary:        Easily install and manage OrangeHRM Starter on AWS!
 
 License:        GPLv3
-URL:            https://github.com/orangehrm/os-cloud
+URL:            https://github.com/orangehrm/orangehrm-os-cloud-packages
 Source0:        orangehrm-aws-cli-%{version}.tar.gz
 
 Requires:       bash
 Requires:       docker
 Requires:       pwgen
-Requires:       bc
 
 BuildArch:      noarch
 
@@ -45,7 +44,6 @@ chown -R ec2-user:ec2-user %{buildroot}/%{_datadir}/orangehrm
 /%{_datadir}/orangehrm/assets/maintenance.php
 /%{_datadir}/orangehrm/assets/ssl.conf
 /%{_datadir}/orangehrm/assets/license.txt
-/%{_datadir}/orangehrm/assets/license-old.txt
 
 /%{_datadir}/orangehrm/scripts/backup
 /%{_datadir}/orangehrm/scripts/ssl
@@ -73,6 +71,14 @@ chown -R ec2-user:ec2-user %{buildroot}/%{_datadir}/orangehrm
 /%{_sysconfdir}/profile.d/login_orangehrm.sh
 
 %changelog
+* Sun Jan 28 2024 devishke-orange <devishke@orangehrm.com> - 0.0.4-4.amzn2023
+- Bumped OrangeHRM, MariaDB version
+- Updated install script for new InstallOnNewDatabaseCommand file
+- Removed new license warning from install, check-update and update scripts
+- Removed NEW_LICENSE_VERSION variable from orangehrm script
+- Removed bc dependency
+- Removed license-old.txt
+- Updated repository URL
 * Wed Jan 10 2024 devishke-orange <devishke@orangehrm.com> - 0.0.3-3.amzn2023
 - Added new license txt
 - Added bc dependency
