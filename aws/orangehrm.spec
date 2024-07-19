@@ -1,6 +1,6 @@
 Name:           orangehrm-aws-cli
-Version:        0.0.5
-Release:        5%{?dist}
+Version:        0.0.6
+Release:        6%{?dist}
 Distribution:   Amazon Linux 2023
 Summary:        Easily install and manage OrangeHRM Starter on AWS!
 
@@ -71,6 +71,8 @@ chown -R ec2-user:ec2-user %{buildroot}/%{_datadir}/orangehrm
 /%{_sysconfdir}/profile.d/login_orangehrm.sh
 
 %changelog
+* Fri Jul 19 2024 devishke-orange <devishke@orangehrm.com> - 0.0.6-6.amzn2023
+- Bumped OrangeHRM, MariaDB version
 * Wed Mar 27 2024 devishke-orange <devishke@orangehrm.com> - 0.0.5-5.amzn2023
 - Bumped OrangeHRM version
 * Sun Jan 28 2024 devishke-orange <devishke@orangehrm.com> - 0.0.4-4.amzn2023
