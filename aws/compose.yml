@@ -1,6 +1,6 @@
 services:
   orangehrm:
-    image: orangehrm/orangehrm:5.7
+    image: orangehrm/orangehrm:5.8
     restart: always
     ports:
       - "80:80"
@@ -15,7 +15,7 @@ services:
     container_name: orangehrm
 
   mariadb1011:
-    image: mariadb:10.11.8
+    image: mariadb:10.11.15
     restart: always
     ports:
       - "3306:3306"
