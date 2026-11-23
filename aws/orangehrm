@@ -218,6 +218,24 @@ apache_enable_ssl() {
     fi
 }
 
+# From OrangeHRM 5.9.1, password reset emails are sent only after the application URL is set.
+# The URL is not set automatically. This function tells the user how to set it if it is not set.
+# The first argument is an example URL to show (optional)
+# shellcheck disable=SC2317
+base_url_notice() {
+    local example_url="${1:-https://hr.example.com}"
+    local output
+
+    # Older OrangeHRM versions do not have this command, so the output will not match and nothing is printed
+    output=$(docker exec orangehrm php bin/console orangehrm:set-base-url 2>&1) || true
+
+    if echo "$output" | grep -q "No application URL is stored"; then
+        ohrm_print "Password reset emails are turned off until you set the application URL.\n"
+        ohrm_print "Set it to the address you use to open OrangeHRM (use https://<your-domain> after you enable HTTPS):\n"
+        printf "  %bdocker exec orangehrm php bin/console orangehrm:set-base-url %s%b\n\n" "$GC" "$example_url" "$EC" >&3
+    fi
+}
+
 export -f print_progress_message
 export -f yes_no_check
 export -f quit_if_input
@@ -225,6 +243,7 @@ export -f ohrm_print
 export -f htaccess_ssl_configure
 export -f maintenance_mode
 export -f apache_enable_ssl
+export -f base_url_notice
 
 # Function to run scripts.
 # Give the name of the script as the first argument
