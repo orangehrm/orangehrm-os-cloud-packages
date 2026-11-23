@@ -126,6 +126,8 @@ upgrade_ohrm() {
     rm -rf "${upgrade_dir}"
     print_progress_message "Upgrading OrangeHRM" success rewrite
     printf "\n%bOrangeHRM was succesfully upgraded to %s!%b\n\n" "$GC" "$new_version" "$EC" >&3
+
+    base_url_notice
 }
 
 update_install_file() {

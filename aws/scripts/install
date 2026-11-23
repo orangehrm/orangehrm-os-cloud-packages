@@ -182,22 +182,25 @@ update_configuration() {
 	local db_pw_decrypt
 	db_pw_decrypt="$(echo "$MARIADB_ROOT_PW" | base64 -d)"
 
-  local line
   local installer_command_file
 
 	installer_command_file="/var/www/html/installer/Command/InstallOnNewDatabaseCommand.php"
 
-  for line in {343..357}; do
-    docker exec orangehrm sed -i "343 d" $installer_command_file
-  done
+  # The edits below match code patterns, not line numbers, so they keep
+  # working when the installer file grows between OrangeHRM versions.
 
-  for line in {146..180}; do
-    docker exec orangehrm sed -i "146 d" $installer_command_file
-  done
+  # Remove the admin password and confirm password prompts
+  # (from "$password = ...askHidden('Password" to the end of the confirm prompt)
+  docker exec orangehrm sed -i '/\$password = \$this->getIO()->askHidden(.Password /,/^        );$/d' $installer_command_file
 
-  docker exec orangehrm sed -i '99d;100d;101d' $installer_command_file
-  docker exec orangehrm sed -i '100a \ \ \ \ \ \ \ \ \$this\->databaseInformation();' $installer_command_file
-  docker exec orangehrm sed -i '101a \ \ \ \ \ \ \ \ \$this\->systemCheck();' $installer_command_file
+  # Remove the database prompts
+  # (from the "Database Configuration" title to the end of the "if ($useSameDbUser === false)" block)
+  docker exec orangehrm sed -i '/\$this->getIO()->title(.Database Configuration.);/,/^        }$/d' $installer_command_file
+
+  # Skip the license step (this script asks for it) and run the database
+  # and system checks after the admin user step
+  docker exec orangehrm sed -i '/^        \$this->licenseAcceptance();$/d;/^        \$this->databaseInformation();$/d;/^        \$this->systemCheck();$/d' $installer_command_file
+  docker exec orangehrm sed -i '/^        \$this->adminUserCreation();$/a \ \ \ \ \ \ \ \ \$this\->databaseInformation();\n\ \ \ \ \ \ \ \ \$this\->systemCheck();' $installer_command_file
 
   docker exec orangehrm sed -i "s/\$dbHost/\"mariadb\"/" $installer_command_file
   docker exec orangehrm sed -i "s/\$dbPort/\"3306\"/" $installer_command_file
@@ -209,6 +212,17 @@ update_configuration() {
   docker exec orangehrm sed -i "s/\$ohrmDbPassword/\"$db_pw_decrypt\"/" $installer_command_file
   docker exec orangehrm sed -i "s/\$useSameDbUser/true/" $installer_command_file
   docker exec orangehrm sed -i "s/\$password/\"$password\"/" $installer_command_file
+
+  # Stop if the edits did not apply, for example because a new OrangeHRM
+  # version changed the installer file. Check the file before releasing.
+  if docker exec orangehrm grep -qF -e "askHidden('Password " -e "title('Database Configuration')" -e 'this->licenseAcceptance();' $installer_command_file \
+    || ! docker exec orangehrm php -l $installer_command_file; then
+    print_progress_message "Updating install configuration" error rewrite
+    ohrm_print "\n"
+    ohrm_print "The OrangeHRM installer could not be configured.\n"
+    ohrm_print "Please contact OrangeHRM support with the file $LOG_DIR/orangehrm_install.log\n\n"
+    exit 1
+  fi
 
 	print_progress_message "Updating install configuration" success rewrite
 }
@@ -261,6 +275,8 @@ print_login_steps() {
 	ohrm_print "You will be prompted to change your password on first login (you will need to change your password before accessing the system via the mobile application)\n\n"
 
 	printf "Visit %b%s%b to access your OrangeHRM system\n\n" "$GC" "http://$ohrmIP" "$EC" >&3
+
+	base_url_notice "http://$ohrmIP"
 }
 
 # Catch CTRL-C
